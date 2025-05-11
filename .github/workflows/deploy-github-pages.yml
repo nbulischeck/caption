@@ -21,6 +21,7 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Restore cache
         uses: actions/cache@v3
         with:
@@ -33,14 +34,23 @@ jobs:
 
       - name: Install dependencies
         run: |
-          cargo install trunk || true \
-            && rustup target add wasm32-unknown-unknown
+          cargo install wasm-pack || true
+          rustup target add wasm32-unknown-unknown
 
-      - name: Build the Rust WASM app and all of its assets
-        run: trunk build --public-url ${{ github.event.repository.name }}
+      - name: Build with wasm-pack
+        run: wasm-pack build --target web --out-dir pkg
+
+      - name: Prepare dist directory
+        run: |
+          mkdir -p dist
+          cp index.html dist/
+          cp worker.js dist/
+          cp favicon.ico dist/
+          cp -r pkg dist/pkg
 
       - name: Setup Pages
         uses: actions/configure-pages@v4
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:

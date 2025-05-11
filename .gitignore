@@ -1,0 +1,9 @@
+# Wasm Generated Components
+pkg/
+
+# Rust Generated Components
+target/
+
+# Cargo Dependencies
+.cargo/
+Cargo.lock

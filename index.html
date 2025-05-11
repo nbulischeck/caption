@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GIF Caption Creator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .container {
+            display: flex;
+            gap: 20px;
+            width: 100%;
+            height: 100%;
+            max-width: 100%;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+
+        .drop-zone {
+            flex: 2;
+            background: white;
+            border: 2px dashed #ccc;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 0;
+            height: 100%;
+            transition: all 0.3s ease;
+            overflow: auto;
+        }
+
+        .drop-zone.dragover {
+            border-color: #2196F3;
+            background-color: #E3F2FD;
+        }
+
+        .controls {
+            flex: 1;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            min-width: 300px;
+            max-width: 400px;
+            height: 100%;
+            overflow-y: auto;
+        }
+
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        button {
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+            width: 100%;
+            margin-top: auto;
+        }
+
+        button:hover {
+            background-color: #1976D2;
+        }
+
+        #preview,
+        #processedPreview {
+            max-width: 100%;
+            max-height: auto;
+            object-fit: contain;
+            margin-top: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .file-info {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            font-size: 0.9em;
+            color: #666;
+            width: 100%;
+        }
+
+        .drop-zone-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            width: 100%;
+            height: 100%;
+            justify-content: center;
+        }
+
+        .drop-zone.has-file {
+            border-style: solid;
+            border-color: #2196F3;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                flex-direction: column;
+                padding: 10px;
+            }
+
+            .drop-zone {
+                min-height: 300px;
+                height: auto;
+            }
+
+            .controls {
+                max-width: 100%;
+                height: auto;
+            }
+
+            button {
+                margin-top: 20px;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="drop-zone" id="dropZone"
+            style="display: flex; flex-direction: column; align-items: stretch; justify-content: stretch;">
+            <div class="drop-zone-content"
+                style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-bottom: 2px solid #eee;">
+                <h2>Drag & Drop GIF Here</h2>
+                <p>or click to select a file</p>
+                <input type="file" id="fileInput" accept=".gif" class="hidden">
+                <div id="fileInfo" class="file-info hidden"></div>
+                <canvas id="preview" class="hidden"></canvas>
+                <canvas id="processedPreview" class="hidden"
+                    style="max-width:100%; border:1px solid #ccc; border-radius:8px; display:none;"></canvas>
+            </div>
+            <div class="generated-gif-side"
+                style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;">
+                <h3 style="margin-top: 1rem;margin-bottom: 1rem;">Generated GIF</h3>
+                <img id="generatedGif"
+                    style="max-width:100%; border:1px solid #ccc; border-radius:8px; display:none;" />
+            </div>
+        </div>
+
+        <div class="controls">
+            <div class="control-group">
+                <label for="captionText">Caption Text</label>
+                <input type="text" id="captionText" placeholder="Enter your caption">
+            </div>
+
+            <div class="control-group">
+                <label for="fontFamily">Font</label>
+                <select id="fontFamily">
+                    <option value="Arial">Arial</option>
+                    <option value="Impact">Impact</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Courier New">Courier New</option>
+                </select>
+            </div>
+
+            <div class="control-group">
+                <label for="fontSize">Font Size</label>
+                <input type="number" id="fontSize" value="24" min="8" max="72">
+            </div>
+
+            <div class="control-group">
+                <label for="positionX">X Position</label>
+                <input type="range" id="positionX" min="0" max="100" value="50">
+            </div>
+
+            <div class="control-group">
+                <label for="positionY">Y Position</label>
+                <input type="range" id="positionY" min="0" max="100" value="50">
+            </div>
+
+            <button id="processButton">Process GIF</button>
+            <button id="downloadButton" disabled
+                style="background: #ccc; color: #888; cursor: not-allowed; margin-top: 10px;">Download GIF</button>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { GifProcessor } from './pkg/gif_caption_wasm.js';
+
+        async function main() {
+            await init();
+
+            const dropZone = document.getElementById('dropZone');
+            const fileInput = document.getElementById('fileInput');
+            const preview = document.getElementById('preview');
+            const processButton = document.getElementById('processButton');
+            const downloadButton = document.getElementById('downloadButton');
+            const fileInfo = document.getElementById('fileInfo');
+
+            let gifProcessor = new GifProcessor();
+            let processedGifProcessor = new GifProcessor();
+            let currentFile = null;
+            let processedGifData = null;
+            let isProcessed = false;
+            let processedGifUrl = null;
+            let worker = null;
+
+            function updateFileInfo(file) {
+                const size = (file.size / 1024).toFixed(2);
+                fileInfo.innerHTML = `
+                    <strong>Selected file:</strong> ${file.name}<br>
+                    <strong>Size:</strong> ${size} KB
+                `;
+                fileInfo.classList.remove('hidden');
+                dropZone.classList.add('has-file');
+            }
+
+            // Drag and drop handlers
+            dropZone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropZone.classList.add('dragover');
+            });
+
+            dropZone.addEventListener('dragleave', () => {
+                dropZone.classList.remove('dragover');
+            });
+
+            dropZone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropZone.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                if (file && file.type === 'image/gif') {
+                    handleFile(file);
+                }
+            });
+
+            dropZone.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    handleFile(file);
+                }
+            });
+
+            async function handleFile(file) {
+                currentFile = file;
+                updateFileInfo(file);
+
+                const arrayBuffer = await file.arrayBuffer();
+                const uint8Array = new Uint8Array(arrayBuffer);
+
+                try {
+                    gifProcessor.process_gif(uint8Array);
+                    const dimensions = gifProcessor.get_dimensions();
+
+                    // Set preview canvas to original GIF dimensions
+                    preview.width = dimensions.width;
+                    preview.height = dimensions.height;
+                    preview.classList.remove('hidden');
+
+                    // Set up processed preview canvas
+                    const processedPreview = document.getElementById('processedPreview');
+                    processedPreview.width = dimensions.width;
+                    processedPreview.height = dimensions.height;
+                    processedPreview.classList.remove('hidden');
+
+                    // Start the animation
+                    startAnimation();
+                } catch (error) {
+                    console.error('Error processing GIF:', error);
+                    fileInfo.innerHTML = `<strong>Error:</strong> Failed to process GIF file`;
+                }
+            }
+
+            let animationFrameId = null;
+            let processedAnimationFrameId = null;
+            let lastFrameTime = 0;
+            let lastProcessedFrameTime = 0;
+            let isProcessing = false;
+
+            function stopAnimation() {
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                    animationFrameId = null;
+                }
+                if (processedAnimationFrameId) {
+                    cancelAnimationFrame(processedAnimationFrameId);
+                    processedAnimationFrameId = null;
+                }
+                lastFrameTime = 0;
+                lastProcessedFrameTime = 0;
+            }
+
+            function startAnimation() {
+                if (isProcessing) return;
+
+                if (animationFrameId) {
+                    cancelAnimationFrame(animationFrameId);
+                }
+                if (processedAnimationFrameId) {
+                    cancelAnimationFrame(processedAnimationFrameId);
+                }
+
+                function animate(timestamp) {
+                    if (!lastFrameTime) lastFrameTime = timestamp;
+                    const elapsed = timestamp - lastFrameTime;
+                    const frameDelay = gifProcessor.get_frame_delay() * 10; // Convert to milliseconds
+
+                    if (elapsed > frameDelay) {
+                        gifProcessor.render_current_frame(preview);
+                        updatePreview();
+                        gifProcessor.next_frame();
+                        lastFrameTime = timestamp;
+                    }
+
+                    animationFrameId = requestAnimationFrame(animate);
+                }
+
+                function animateProcessed(timestamp) {
+                    if (!lastProcessedFrameTime) lastProcessedFrameTime = timestamp;
+                    const elapsed = timestamp - lastProcessedFrameTime;
+                    const frameDelay = processedGifProcessor.get_frame_delay() * 10;
+
+                    if (elapsed > frameDelay && processedGifData) {
+                        const processedPreview = document.getElementById('processedPreview');
+                        processedGifProcessor.render_current_frame(processedPreview);
+                        processedGifProcessor.next_frame();
+                        lastProcessedFrameTime = timestamp;
+                    }
+
+                    processedAnimationFrameId = requestAnimationFrame(animateProcessed);
+                }
+
+                animationFrameId = requestAnimationFrame(animate);
+                processedAnimationFrameId = requestAnimationFrame(animateProcessed);
+            }
+
+            function updatePreview() {
+                const text = document.getElementById('captionText').value;
+                if (!text) return;
+
+                const fontFamily = document.getElementById('fontFamily').value;
+                const fontSize = parseFloat(document.getElementById('fontSize').value);
+                const dimensions = gifProcessor.get_dimensions();
+                const scale = dimensions.width / preview.width;
+                const previewFontSize = fontSize / scale;
+                const x = (parseFloat(document.getElementById('positionX').value) / 100) * preview.width;
+                const y = (parseFloat(document.getElementById('positionY').value) / 100) * preview.height;
+
+                try {
+                    gifProcessor.add_caption(preview, text, x, y, previewFontSize, fontFamily);
+                } catch (error) {
+                    console.error('Error updating preview:', error);
+                }
+            }
+
+            // Add event listeners for real-time preview updates
+            document.getElementById('captionText').addEventListener('input', updatePreview);
+            document.getElementById('fontFamily').addEventListener('change', updatePreview);
+            document.getElementById('fontSize').addEventListener('input', updatePreview);
+            document.getElementById('positionX').addEventListener('input', updatePreview);
+            document.getElementById('positionY').addEventListener('input', updatePreview);
+
+            // Initialize the web worker
+            function initWorker() {
+                if (!worker) {
+                    worker = new Worker(new URL('./worker.js', import.meta.url), { type: 'module' });
+
+                    worker.onmessage = function (e) {
+                        const { type, data, error } = e.data;
+
+                        if (type === 'gif_processed') {
+                            // Store the processed GIF data and initialize the processed processor
+                            processedGifData = data;
+                            processedGifProcessor.process_gif(data);
+
+                            // Create a Blob from the GIF data
+                            const blob = new Blob([data], { type: 'image/gif' });
+                            if (processedGifUrl) {
+                                URL.revokeObjectURL(processedGifUrl);
+                            }
+                            processedGifUrl = URL.createObjectURL(blob);
+
+                            // Show the generated GIF in the side container
+                            const generatedGif = document.getElementById('generatedGif');
+                            generatedGif.src = processedGifUrl;
+                            generatedGif.style.display = '';
+
+                            // Enable the download button
+                            downloadButton.disabled = false;
+                            downloadButton.style.background = '';
+                            downloadButton.style.color = '';
+                            downloadButton.style.cursor = '';
+
+                            // Reset process button state
+                            processButton.disabled = false;
+                            processButton.textContent = 'Process GIF';
+
+                            // Restart animation
+                            isProcessing = false;
+                            startAnimation();
+                        } else if (type === 'error') {
+                            console.error('Worker error:', error);
+                            alert('Error processing GIF. Please try again.');
+                            // Reset process button state on error
+                            processButton.disabled = false;
+                            processButton.textContent = 'Process GIF';
+                            isProcessing = false;
+                            startAnimation();
+                        }
+                    };
+                }
+            }
+
+            processButton.addEventListener('click', async () => {
+                if (!currentFile || isProcessing) return;
+
+                try {
+                    isProcessing = true;
+                    processButton.disabled = true;
+                    processButton.textContent = 'Processing...';
+
+                    const text = document.getElementById('captionText').value;
+                    const fontFamily = document.getElementById('fontFamily').value;
+                    const fontSize = parseInt(document.getElementById('fontSize').value);
+                    const x = (parseInt(document.getElementById('positionX').value) / 100) * preview.width;
+                    const y = (parseInt(document.getElementById('positionY').value) / 100) * preview.height;
+
+                    // Initialize worker if not already done
+                    initWorker();
+
+                    // First, prepare the text overlay in the main thread
+                    const textOverlay = gifProcessor.prepare_text_overlay(
+                        text,
+                        x,
+                        y,
+                        fontSize,
+                        fontFamily
+                    );
+
+                    // Read the GIF file
+                    const arrayBuffer = await currentFile.arrayBuffer();
+                    const gifData = new Uint8Array(arrayBuffer);
+
+                    // Send the data to the worker for processing
+                    worker.postMessage({
+                        type: 'process_gif',
+                        data: {
+                            gifData,
+                            textData: textOverlay
+                        }
+                    });
+
+                } catch (error) {
+                    console.error('Error processing GIF:', error);
+                    alert('Error processing GIF. Please try again.');
+                    isProcessing = false;
+                    startAnimation();
+                }
+            });
+
+            downloadButton.addEventListener('click', () => {
+                if (!processedGifUrl) return;
+                const link = document.createElement('a');
+                const originalName = currentFile.name;
+                const baseName = originalName.substring(0, originalName.lastIndexOf('.'));
+                const extension = originalName.substring(originalName.lastIndexOf('.'));
+                link.download = `${baseName}-captioned${extension}`;
+                link.href = processedGifUrl;
+                link.click();
+            });
+
+            // Reset download button if user changes any input
+            [
+                'captionText',
+                'fontFamily',
+                'fontSize',
+                'positionX',
+                'positionY'
+            ].forEach(id => {
+                document.getElementById(id).addEventListener('input', () => {
+                    // Hide the generated GIF side container
+                    const generatedGif2 = document.getElementById('generatedGif');
+                    generatedGif2.style.display = 'none';
+                    // Disable the download button
+                    downloadButton.disabled = true;
+                    downloadButton.style.background = '#ccc';
+                    downloadButton.style.color = '#888';
+                    downloadButton.style.cursor = 'not-allowed';
+                    if (processedGifUrl) {
+                        URL.revokeObjectURL(processedGifUrl);
+                        processedGifUrl = null;
+                    }
+                });
+            });
+
+            // Handle window resize
+            window.addEventListener('resize', () => {
+                if (currentFile) {
+                    handleFile(currentFile);
+                }
+            });
+        }
+
+        main().catch(console.error);
+    </script>
+</body>
+
+</html>

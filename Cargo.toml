@@ -1,0 +1,27 @@
+[package]
+name = "gif_caption_wasm"
+version = "0.1.0"
+edition = "2021"
+description = "A WebAssembly library for adding captions to GIF images in the browser"
+repository = "https://github.com/nbulischeck/gif-caption-wasm"
+license = "MIT"
+authors = ["Nick Bulischeck <nbulischeck@users.noreply.github.com>"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+gif = "0.12"
+wasm-bindgen = "0.2.87"
+web-sys = { version = "0.3.64", features = [
+    "Document",
+    "Element",
+    "HtmlCanvasElement",
+    "CanvasRenderingContext2d",
+    "ImageData",
+    "Window",
+    "console"
+]}
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.37"

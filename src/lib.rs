@@ -11,9 +11,9 @@ use web_sys::{CanvasRenderingContext2d, HtmlCanvasElement, ImageData};
 #[derive(Debug, Clone, Copy)]
 pub struct Dimensions {
     /// Width of the GIF frame in pixels
-    pub width: u16,
+    pub width: usize,
     /// Height of the GIF frame in pixels
-    pub height: u16,
+    pub height: usize,
 }
 
 #[wasm_bindgen]
@@ -24,7 +24,7 @@ impl Dimensions {
     /// * `width` - The width of the frame in pixels
     /// * `height` - The height of the frame in pixels
     #[wasm_bindgen(constructor)]
-    pub fn new(width: u16, height: u16) -> Dimensions {
+    pub fn new(width: usize, height: usize) -> Dimensions {
         Dimensions { width, height }
     }
 }
@@ -75,9 +75,9 @@ pub struct GifProcessor {
     /// Raw frame data for each frame in the GIF
     frames: Vec<Vec<u8>>,
     /// Width of the GIF in pixels
-    width: u16,
+    width: usize,
     /// Height of the GIF in pixels
-    height: u16,
+    height: usize,
     /// Index of the current frame being displayed
     current_frame: usize,
     /// Delay time for each frame in centiseconds
@@ -125,19 +125,53 @@ impl GifProcessor {
             .read_info(cursor)
             .map_err(|e| GifError::DecodeError(e.to_string()))?;
 
-        // Pre-allocate vectors with reasonable capacity
-        self.frames = Vec::with_capacity(100); // Most GIFs have fewer than 100 frames
+        self.width = decoder.width() as usize;
+        self.height = decoder.height() as usize;
+        self.current_frame = 0;
+
+        self.frames = Vec::with_capacity(100);
         self.frame_delays = Vec::with_capacity(100);
 
-        self.width = decoder.width();
-        self.height = decoder.height();
-        self.current_frame = 0;
+        let mut canvas = vec![0u8; self.width * self.height * 4];
+        let mut previous_canvas = canvas.clone();
 
         while let Some(frame) = decoder
             .read_next_frame()
             .map_err(|e| GifError::DecodeError(e.to_string()))?
         {
-            self.frames.push(frame.buffer.to_vec());
+            let frame_width = frame.width as usize;
+            let frame_height = frame.height as usize;
+            let frame_top = frame.top as usize;
+            let frame_left = frame.left as usize;
+
+            match frame.dispose {
+                gif::DisposalMethod::Background => {
+                    canvas.fill(0);
+                }
+                gif::DisposalMethod::Previous => {
+                    canvas.copy_from_slice(&previous_canvas);
+                }
+                gif::DisposalMethod::Keep | gif::DisposalMethod::Any => {
+                    previous_canvas.copy_from_slice(&canvas);
+                }
+            }
+
+            for y in 0..frame_height {
+                for x in 0..frame_width {
+                    let src_idx = (y * frame_width + x) * 4;
+                    let cx = frame_left + x;
+                    let cy = frame_top + y;
+                    if cx < self.width && cy < self.height {
+                        let dst_idx = (cy * self.width + cx) * 4;
+                        let pixel = &frame.buffer[src_idx..src_idx + 4];
+                        if pixel[3] > 0 {
+                            canvas[dst_idx..dst_idx + 4].copy_from_slice(pixel);
+                        }
+                    }
+                }
+            }
+
+            self.frames.push(canvas.clone());
             self.frame_delays.push(frame.delay);
         }
 
@@ -168,9 +202,10 @@ impl GifProcessor {
         context.clear_rect(0.0, 0.0, canvas.width() as f64, canvas.height() as f64);
 
         let frame_data = &self.frames[self.current_frame];
-        let image_data = ImageData::new_with_u8_clamped_array(
+        let image_data = ImageData::new_with_u8_clamped_array_and_sh(
             wasm_bindgen::Clamped(frame_data),
             self.width as u32,
+            self.height as u32,
         )?;
 
         context.put_image_data(&image_data, 0.0, 0.0)?;
@@ -325,10 +360,9 @@ impl GifProcessor {
             return Err(GifError::InvalidState("No frames to process".into()).into());
         }
 
-        let mut output =
-            Vec::with_capacity(self.frames.len() * self.width as usize * self.height as usize);
+        let mut output = Vec::with_capacity(self.frames.len() * self.width * self.height);
         {
-            let mut encoder = Encoder::new(&mut output, self.width, self.height, &[])
+            let mut encoder = Encoder::new(&mut output, self.width as u16, self.height as u16, &[])
                 .map_err(|e| GifError::EncodeError(e.to_string()))?;
 
             encoder
@@ -338,9 +372,10 @@ impl GifProcessor {
             for (i, frame_data) in self.frames.iter().enumerate() {
                 let mut modified_data = self.composite_text_overlay(frame_data, text_data);
 
-                let mut frame = Frame::from_rgba(self.width, self.height, &mut modified_data);
+                let mut frame =
+                    Frame::from_rgba(self.width as u16, self.height as u16, &mut modified_data);
                 frame.delay = self.frame_delays[i];
-                frame.dispose = gif::DisposalMethod::Background;
+                frame.dispose = gif::DisposalMethod::Keep;
 
                 encoder
                     .write_frame(&frame)
